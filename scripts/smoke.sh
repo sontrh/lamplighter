@@ -122,8 +122,8 @@ bot() { # bot [flags...]: one pass of the Go bot, signing with the keeper key
 	LAMPLIGHTER_PASSWORD="" "$BOT" -remote "http://$RPC" -chain-id dev -registry "$REG" \
 		-home "$GNOHOME" -key keeper -once "$@" 2>&1 || true
 }
-wait_due() { # wait_due <job id>
-	for _ in $(seq 1 60); do
+wait_due() { # wait_due <job id>; the longest wait is an auction round of 60s
+	for _ in $(seq 1 180); do
 		[[ "$(q "$REG.IsDue($1)")" == "(true bool)" ]] && return 0
 		sleep 1
 	done
