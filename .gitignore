@@ -7,3 +7,6 @@
 # Bot binaries from a plain `go build`.
 bot/bot
 bot/lamplighter-bot
+
+# Demo video build (large generated files).
+video/
