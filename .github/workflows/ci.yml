@@ -1,0 +1,45 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: bot/go.mod
+          cache-dependency-path: bot/go.sum
+
+      # gno, gnokey and gnodev at the version the Onyx testnet runs.
+      - name: Cache the Gno toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            .tools/bin
+            .tools/gno-src
+          key: gno-tools-v1.8.0-rc.1-${{ runner.os }}-${{ hashFiles('scripts/tools.sh') }}
+
+      - name: Build the Gno toolchain
+        run: |
+          if [ ! -x .tools/bin/gnodev ]; then make tools; fi
+
+      - name: Lint
+        run: make lint
+
+      - name: Unit tests
+        run: make test
+
+      # The realms, the bot and the hostile jobs, with real transactions on a
+      # throwaway local chain.
+      - name: End-to-end test
+        run: make smoke

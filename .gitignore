@@ -1,0 +1,9 @@
+# Toolchain built by `make tools`, the package cache, and throwaway dev-chain keys.
+.tools/
+
+# Private working notes. Not part of the project.
+.notes/
+
+# Bot binaries from a plain `go build`.
+bot/bot
+bot/lamplighter-bot
