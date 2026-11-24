@@ -1,5 +1,7 @@
 # Lamplighter
 
+[![ci](https://github.com/sontrh/lamplighter/actions/workflows/ci.yml/badge.svg)](https://github.com/sontrh/lamplighter/actions/workflows/ci.yml)
+
 **Scheduled work for gno.land realms, run by whoever shows up.**
 
 gno.land has no scheduler: a realm only runs when a transaction calls it. Lamplighter is a registry where a realm posts a callback, a schedule and a reward. Once the job is due, anyone may run it, and the registry pays them the reward in the same transaction.
@@ -242,7 +244,7 @@ Needs git, make and Go 1.25.9 or newer.
 ```sh
 make tools   # builds gno, gnokey and gnodev at v1.8.0-rc.1, the version Onyx runs, into .tools/
 make test    # unit tests of the three realms and of the bot
-make smoke   # the whole thing on a throwaway local chain, with real transactions (about six minutes)
+make smoke   # the whole thing on a throwaway local chain, with real transactions (three to six minutes)
 make dev     # a local chain with gnoweb at http://127.0.0.1:8899
 ```
 
