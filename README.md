@@ -275,7 +275,7 @@ Three properties of the Gno test runtime shape how the unit tests are written: a
 - **Funders cannot withdraw.** Oil is the job's, and only the owner cancels.
 - **A job is a few kilobytes of state**, most of it two AVL tree nodes. Posting one locks that deposit until it is cancelled.
 - **Interval schedules only.** Cron expressions would need moul's parser, which is not deployed on Onyx.
-- **Not audited.** Four review passes found and fixed real problems (see [`docs/design.vi.md`](docs/design.vi.md), in Vietnamese, the author's working notes); that is not an audit.
+- **Not audited.** Four review passes found and fixed real problems (listed in [`docs/design.md`](docs/design.md)); that is not an audit.
 
 ## Prior art
 
@@ -312,7 +312,7 @@ gno.land/r/<address>/lamplighter/
   lastorders/v1/   example: one job per auction round, funded by the realm
 bot/               the executor bot (Go)
 scripts/           smoke test, deploy script, toolchain bootstrap, hostile test realm
-docs/design.vi.md  design notes in Vietnamese
+docs/design.md     design notes
 ```
 
 ## License
