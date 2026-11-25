@@ -96,7 +96,7 @@ Then fund it: a user calls `Fund` with coins attached, or your realm sends coins
 
 **What the registry can do to your realm: nothing but call the callback you gave it.** It cannot write your state.
 
-**What your callback must check: the caller and the job id.** `Exec` is open to everyone and so is `Register`, so the registry will run any reachable `func(realm, uint64) error` for anyone, including another realm's exported one. "The caller is the registry" says nothing about which job is running or who scheduled it. The job id does. Keep the callback unexported, and never grant the registry's address a privilege in your realm. [`TestAnotherRealmCannotScheduleTheTap`](gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/taproom/v2/taproom_test.gno) is the attack, refused.
+**What your callback must check: the caller and the job id.** `Exec` is open to everyone and so is `Register`, so the registry will run any reachable `func(realm, uint64) error` for anyone, including another realm's exported one. "The caller is the registry" says nothing about which job is running or who scheduled it. The job id does. Keep the callback unexported, and never grant the registry's address a privilege in your realm. [`TestAnotherRealmCannotScheduleTheTap`](gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/taproom/v3/taproom_test.gno) is the attack, refused.
 
 **What running a job exposes you to: somebody else's code.** A callback is written by the job's owner. Whoever sends the transaction pays the storage deposit for every byte of state that code adds, in any realm, and a callback can behave differently in a real block than it did in simulation. Send `Exec` with a small `-max-deposit`. The bot does more; see below.
 
@@ -183,7 +183,7 @@ Measured on a local chain running gno v1.8.0-rc.1 (gas price 1 ugnot per 1,000 g
 
 ## The two example realms
 
-**[Taproom](gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/taproom/v2/taproom.gno)**: the smallest possible consumer. The brew on tap changes every five minutes; one repeating job, registered in `init`. Its keeper can close it, which cancels the job and returns the unspent oil.
+**[Taproom](gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/taproom/v3/taproom.gno)**: the smallest possible consumer. The brew on tap changes every five minutes; one repeating job, posted when its keeper opens the taproom. The keeper can close it, which cancels the job and returns the unspent oil.
 
 **[Last Orders](gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/lastorders/v1/lastorders.gno)**: an auction that has to end on time. The highest bidder buys the last round of the night and gets a toast on the wall. Each round posts its own one-shot job and funds it, in the same call, from the fee the seller attached. Running the job at closing time moves the winning bid to the seller. Afterwards the seller cancels the finished job to get the storage deposit back.
 
@@ -254,9 +254,9 @@ The tools are pinned to the chain's version on purpose: a `gnokey` from before v
 
 ## Tests
 
-- **Realms** (`make test`): 29 tests. Every registry test ends by checking two invariants: the coins the realm holds cover what its jobs are owed, and every job is filed in the queue index under the one key that matches its state.
+- **Realms** (`make test`): 30 tests. Every registry test ends by checking two invariants: the coins the realm holds cover what its jobs are owed, and every job is filed in the queue index under the one key that matches its state.
 - **Bot** (`make test`): 16 tests of the decision, the fee and gas arithmetic, the parsing of what the chain sends back, and the loss ledger.
-- **End to end** (`make smoke`): 59 checks with real transactions on a local chain:
+- **End to end** (`make smoke`): 62 checks with real transactions on a local chain:
   - the registry and the taproom: funding, running, and everything that must be refused, including a `maketx run` script trying to register;
   - the bot as a first-time executor: dry run, skipping what does not pay, a real run, and its estimate against its real balance;
   - the auction: open, bid, refund of the outbid bidder, the bot settling the round, the seller paid, the seller reclaiming the deposit;
@@ -308,7 +308,7 @@ Four earlier submissions under the same address are superseded and unused. A sub
 ```
 gno.land/r/<address>/lamplighter/
   registry/v2/     the registry realm and its dashboard
-  taproom/v2/      example: one repeating job
+  taproom/v3/      example: one repeating job
   lastorders/v1/   example: one job per auction round, funded by the realm
 bot/               the executor bot (Go)
 scripts/           smoke test, deploy script, toolchain bootstrap, hostile test realm

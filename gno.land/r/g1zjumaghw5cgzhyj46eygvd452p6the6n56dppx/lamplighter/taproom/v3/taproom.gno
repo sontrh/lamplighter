@@ -1,8 +1,8 @@
 // Package taproom is a small realm that needs waking: the brew on tap changes
 // on a schedule, and nothing in the realm can make that happen by itself.
 //
-// It posts one Lamplighter job when it is deployed. Whoever runs that job
-// changes the tap and is paid by the registry.
+// Its keeper opens it once, which posts one Lamplighter job. Whoever runs
+// that job changes the tap and is paid by the registry.
 package taproom
 
 import (
@@ -21,6 +21,11 @@ const (
 
 	// reward is the ugnot the registry pays for each rotation.
 	reward int64 = 50000
+
+	// keeper alone can open and close the taproom. It is written here rather
+	// than taken from whoever deployed the realm, so that it does not depend
+	// on how the package was published or enabled.
+	keeper address = "g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx"
 )
 
 var (
@@ -35,15 +40,26 @@ var (
 	onTap     int
 	rotations int64
 	since     int64
-	jobID     uint64
 
-	// keeper is the account that deployed the taproom. It alone can close it.
-	keeper address
+	// jobID is the taproom's job in the registry, 0 until the keeper opens
+	// the taproom. The registry numbers jobs from 1.
+	jobID  uint64
 	closed bool
 )
 
-func init(cur realm) {
-	keeper = cur.Previous().Address()
+// Open posts the taproom's job: the first change of brew one interval from
+// now, then one every interval. Only the keeper can call it, and only once.
+// The keeper's transaction pays the storage deposit for the job.
+func Open(cur realm) {
+	if cur.Previous().Address() != keeper {
+		panic("only the keeper can open the taproom")
+	}
+	if closed {
+		panic("the taproom is closed for good")
+	}
+	if jobID != 0 {
+		panic("the taproom is already open")
+	}
 	since = time.Now().Unix()
 	jobID = registry.Register(cross(cur), "Taproom: change the brew on tap",
 		since+rotateEvery, rotateEvery, reward, rotate)
@@ -73,6 +89,9 @@ func Close(cur realm) {
 	if closed {
 		panic("the taproom is already closed")
 	}
+	if jobID == 0 {
+		panic("the taproom is not open")
+	}
 	closed = true
 	registry.Cancel(cross(cur), jobID, keeper)
 }
@@ -83,7 +102,8 @@ func OnTap() string { return brews[onTap] }
 // Rotations returns how many times the tap has been changed.
 func Rotations() int64 { return rotations }
 
-// JobID returns the id of this realm's job in the registry.
+// JobID returns the id of this realm's job in the registry, or 0 before the
+// taproom opens.
 func JobID() uint64 { return jobID }
 
 // Keeper returns the account that can close the taproom.
@@ -98,12 +118,19 @@ func Render(_ string) string {
 	var b strings.Builder
 	b.WriteString("# The Taproom\n\n")
 	b.WriteString("## On tap: " + OnTap() + "\n\n")
-	b.WriteString("Poured since " + time.Unix(since, 0).UTC().Format("2006-01-02 15:04:05") +
-		" UTC. The tap has been changed " + strconv.FormatInt(rotations, 10) + " times.\n\n")
+	if jobID != 0 {
+		b.WriteString("Poured since " + time.Unix(since, 0).UTC().Format("2006-01-02 15:04:05") +
+			" UTC. The tap has been changed " + strconv.FormatInt(rotations, 10) + " times.\n\n")
+	}
 
-	if closed {
+	switch {
+	case jobID == 0:
+		b.WriteString("The brew should change every " + strconv.FormatInt(rotateEvery/60, 10) +
+			" minutes, but a realm cannot wake itself. The taproom has not opened yet: when its keeper opens it, " +
+			"it posts that work as a Lamplighter job, and whoever runs the job changes the tap and is paid for it.\n\n")
+	case closed:
 		b.WriteString("The taproom is closed: its keeper stopped the rotation.\n\n")
-	} else {
+	default:
 		b.WriteString("The brew should change every " + strconv.FormatInt(rotateEvery/60, 10) +
 			" minutes, but a realm cannot wake itself. So the taproom posted the work as [Lamplighter job " +
 			job + "](" + jobURL + "): whoever runs it changes the tap and is paid " +

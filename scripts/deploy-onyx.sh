@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Publish the realms to the Onyx testnet and put some oil in the taproom job.
+# Publish the realms to the Onyx testnet, open the taproom, and put some oil in
+# its job.
 #
 # Onyx stores new code inert: a submitted package is parked until the chain's
 # package approver enables it, which takes from about an hour to much longer
 # (status: https://gpas.onyx.testnets.gno.land). So this script is run twice:
-# once to submit, and again once the realms are active, to fund the job.
+# once to submit, and again once the realms are active, to open the taproom
+# and fund its job. The taproom's keeper is the namespace's account, so the
+# key that publishes is the one that opens it.
 #
 # It is safe to run again. A package that is already active or parked is
 # skipped, and if the node cannot say which, the script stops rather than
@@ -32,7 +35,7 @@ NS="$(gnokey list -home "$KEYS" | sed -n "s/.* $KEY .*addr: \(g1[a-z0-9]*\).*/\1
 	exit 1
 }
 REG="gno.land/r/$NS/lamplighter/registry/v2"
-TAP="gno.land/r/$NS/lamplighter/taproom/v2"
+TAP="gno.land/r/$NS/lamplighter/taproom/v3"
 LAST="gno.land/r/$NS/lamplighter/lastorders/v1"
 PACKAGES=("$REG" "$TAP" "$LAST") # in dependency order
 
@@ -115,6 +118,15 @@ job="$(num "$TAP.JobID()")"
 	echo "could not read the taproom's job id"
 	exit 1
 }
+if [[ "$job" == "0" ]]; then
+	echo "opening the taproom"
+	tx call -pkgpath "$TAP" -func Open -gas-fee 20000ugnot -gas-wanted 20000000
+	job="$(num "$TAP.JobID()")"
+	[[ -n "$job" && "$job" != "0" ]] || {
+		echo "the taproom did not open"
+		exit 1
+	}
+fi
 held="$(num "$REG.Balance($job)")"
 [[ -n "$held" ]] || {
 	echo "could not read the balance of job $job"
@@ -130,5 +142,5 @@ fi
 echo
 echo "balance now $(balance)"
 echo "registry: $WEB/r/$NS/lamplighter/registry/v2"
-echo "taproom:  $WEB/r/$NS/lamplighter/taproom/v2"
+echo "taproom:  $WEB/r/$NS/lamplighter/taproom/v3"
 echo "auction:  $WEB/r/$NS/lamplighter/lastorders/v1"

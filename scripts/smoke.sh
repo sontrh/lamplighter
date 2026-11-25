@@ -16,7 +16,7 @@ RPC=127.0.0.1:36657
 WEB=127.0.0.1:8899
 NS=g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx
 REG=gno.land/r/$NS/lamplighter/registry/v2
-TAP=gno.land/r/$NS/lamplighter/taproom/v2
+TAP=gno.land/r/$NS/lamplighter/taproom/v3
 LAST=gno.land/r/$NS/lamplighter/lastorders/v1
 BAD=gno.land/r/test/hostile
 LOG="$(mktemp -t lamplighter-gnodev.XXXXXX)"
@@ -41,14 +41,18 @@ addr_of() { gnokey list -home "$GNOHOME" | sed -n "s/.* $1 .*addr: \(g1[a-z0-9]*
 LIGHTER="$(addr_of lighter)"
 KEEPER="$(addr_of keeper)"
 
-# The published taproom rotates every 300s. Waiting for slots of that length
-# would take a quarter of an hour, so the dev chain gets a copy that rotates
-# every 30s. That one constant is the only difference from the published code.
+# The published taproom rotates every 300s, and its keeper is the namespace's
+# own account. Waiting for slots of that length would take a quarter of an
+# hour, and this chain has no key for that account, so the dev chain gets a
+# copy that rotates every 30s and is kept by the throwaway keeper key. Those
+# two constants are the only differences from the published code.
 cp -r "$ROOT/gno.land/." "$WORK/"
-tap_src="$WORK/r/$NS/lamplighter/taproom/v2/taproom.gno"
-sed 's/rotateEvery int64 = 300$/rotateEvery int64 = 30/' "$ROOT/gno.land/r/$NS/lamplighter/taproom/v2/taproom.gno" >"$tap_src"
-grep -q 'rotateEvery int64 = 30$' "$tap_src" || {
-	echo "could not shorten the taproom interval for the dev chain"
+tap_src="$WORK/r/$NS/lamplighter/taproom/v3/taproom.gno"
+sed -e 's/rotateEvery int64 = 300$/rotateEvery int64 = 30/' \
+	-e "s/keeper address = \"$NS\"\$/keeper address = \"$KEEPER\"/" \
+	"$ROOT/gno.land/r/$NS/lamplighter/taproom/v3/taproom.gno" >"$tap_src"
+grep -q 'rotateEvery int64 = 30$' "$tap_src" && grep -q "keeper address = \"$KEEPER\"\$" "$tap_src" || {
+	echo "could not adapt the taproom for the dev chain"
 	exit 1
 }
 mkdir -p "$WORK/r/test"
@@ -131,15 +135,18 @@ wait_due() { # wait_due <job id>; the longest wait is an auction round of 60s
 	exit 1
 }
 
-TAPJOB="$(num "$TAP.JobID()")"
 BLOAT="$(num "$BAD.BloatJob()")"
 MOODY="$(num "$BAD.MoodyJob()")"
 
 echo "startup"
 check "gnodev started without errors" "errors=$(grep -c ' E ' "$LOG" || true)" "errors=0"
-check "the taproom posted its job when it was deployed" "$(page "$REG:")" "Taproom: change the brew on tap"
-check "the taproom recorded its deployer as keeper" "$(q "$TAP.Keeper()")" "$NS"
+check "the taproom posts nothing until it is opened" "$(q "$TAP.JobID()")" "(0 uint64)"
+check "a stranger cannot open the taproom" "$(tx lighter "$TAP" Open)" "only the keeper can open the taproom"
+check "the keeper opens the taproom" "$(tx keeper "$TAP" Open)" "OK!"
+check "opening the taproom posted its job" "$(page "$REG:")" "Taproom: change the brew on tap"
+check "the taproom opens only once" "$(tx keeper "$TAP" Open)" "the taproom is already open"
 check "first brew is on tap" "$(q "$TAP.OnTap()")" "Gnomish Amber"
+TAPJOB="$(num "$TAP.JobID()")"
 check "an unfunded job is not offered to executors" "$(q "$REG.DueJobs(0, 0, 0)")" '("" string)'
 
 echo "who may register"

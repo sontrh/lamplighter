@@ -30,9 +30,29 @@ func restock() {
 	}
 }
 
+// Nothing is posted until the keeper opens the taproom, and only the keeper
+// can, once.
+func TestOnlyTheKeeperOpens(cur realm, t *testing.T) {
+	uassert.Equal(t, uint64(0), JobID())
+	uassert.True(t, strings.Contains(Render(""), "The taproom has not opened yet"))
+	uassert.False(t, strings.Contains(Render(""), "/lamplighter/registry/v2:job/"))
+
+	testing.SetRealm(testing.NewUserRealm(lighter))
+	uassert.AbortsWithMessage(t, cur, "only the keeper can open the taproom", func() { Open(cross(cur)) })
+	testing.SetRealm(testing.NewUserRealm(keeper))
+	uassert.AbortsWithMessage(t, cur, "the taproom is not open", func() { Close(cross(cur)) })
+	uassert.Equal(t, uint64(0), JobID())
+
+	Open(cross(cur))
+	uassert.True(t, JobID() != 0)
+	uassert.True(t, registry.Exists(JobID()))
+	uassert.Equal(t, registry.NextDue(JobID()), since+rotateEvery)
+	uassert.AbortsWithMessage(t, cur, "the taproom is already open", func() { Open(cross(cur)) })
+}
+
 // The whole point of the project in one test: this realm registered a
-// callback with another realm at init, and a stranger calling that other
-// realm changes this realm's state and is paid for it.
+// callback with another realm, and a stranger calling that other realm
+// changes this realm's state and is paid for it.
 func TestStrangerRotatesTheTap(cur realm, t *testing.T) {
 	uassert.Equal(t, "Gnomish Amber", OnTap())
 	uassert.Equal(t, int64(0), Rotations())
@@ -97,22 +117,22 @@ func TestRender(t *testing.T) {
 // Close ends the job the tests above use.
 func TestOnlyTheKeeperCloses(cur realm, t *testing.T) {
 	restock()
-	keeper = patron // the test runtime's deployer is not an account we can act as
 
 	testing.SetRealm(testing.NewUserRealm(lighter))
 	uassert.AbortsWithMessage(t, cur, "only the keeper can close the taproom", func() { Close(cross(cur)) })
 
 	left := registry.Balance(JobID())
 	uassert.True(t, left > 0)
-	before := ugnotOf(patron)
+	before := ugnotOf(keeper)
 
-	testing.SetRealm(testing.NewUserRealm(patron))
+	testing.SetRealm(testing.NewUserRealm(keeper))
 	Close(cross(cur))
-	uassert.Equal(t, before+left, ugnotOf(patron), "the unspent oil comes back")
+	uassert.Equal(t, before+left, ugnotOf(keeper), "the unspent oil comes back")
 	uassert.False(t, registry.Exists(JobID()))
 	uassert.True(t, strings.Contains(Render(""), "The taproom is closed"))
 
 	uassert.AbortsWithMessage(t, cur, "the taproom is already closed", func() { Close(cross(cur)) })
+	uassert.AbortsWithMessage(t, cur, "the taproom is closed for good", func() { Open(cross(cur)) })
 }
 
 // The registry runs any callback for anyone. Another realm that gets hold of

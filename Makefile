@@ -41,4 +41,4 @@ dev:
 		-node-rpc-listener 127.0.0.1:36657 -web-listener 127.0.0.1:8899 \
 		-empty-blocks=true -add-account lighter=5000000ugnot \
 		-add-account $(NS)=10000000000ugnot -deploy-key $(NS) \
-		-paths gno.land/r/$(NS)/lamplighter/registry/v2,gno.land/r/$(NS)/lamplighter/taproom/v2,gno.land/r/$(NS)/lamplighter/lastorders/v1
+		-paths gno.land/r/$(NS)/lamplighter/registry/v2,gno.land/r/$(NS)/lamplighter/taproom/v3,gno.land/r/$(NS)/lamplighter/lastorders/v1
