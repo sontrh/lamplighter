@@ -1,8 +1,14 @@
-# Lamplighter
+<p align="center">
+  <img src="docs/logo.png" alt="Lamplighter logo: a lantern held by a robot arm" width="180">
+</p>
 
-[![ci](https://github.com/sontrh/lamplighter/actions/workflows/ci.yml/badge.svg)](https://github.com/sontrh/lamplighter/actions/workflows/ci.yml)
+<h1 align="center">Lamplighter</h1>
 
-**Scheduled work for gno.land realms, run by whoever shows up.**
+<p align="center"><strong>Scheduled work for gno.land realms, run by whoever shows up.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/sontrh/lamplighter/actions/workflows/ci.yml"><img src="https://github.com/sontrh/lamplighter/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+</p>
 
 gno.land has no scheduler: a realm only runs when a transaction calls it. Lamplighter is a registry where a realm posts a callback, a schedule and a reward. Once the job is due, anyone may run it, and the registry pays them the reward in the same transaction.
 
@@ -12,8 +18,9 @@ An entry for the [Gnome Tavern hackathon](https://dorahacks.io/hackathon/gnome-t
 |---|---|
 | Registry realm | `gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/registry/v2` |
 | Network | Onyx testnet (`onyx-1`) |
-| Status | Submitted 2026-11-24 in blocks 1366163, 1366165 and 1366166. Onyx parks new code until its approver enables it; see [Deployment](#deployment-on-onyx). |
-| Demo video | not recorded yet |
+| Status | Live on Onyx: the registry and Last Orders since 2026-11-24, the taproom since 2026-11-27. See [Deployment](#deployment-on-onyx). |
+| Live pages | [Registry dashboard](https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/registry/v2) · [Taproom](https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/taproom/v3) · [Last Orders](https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/lastorders/v1) |
+| Demo video | recorded; link to follow |
 
 ## Contents
 
@@ -29,6 +36,8 @@ An entry for the [Gnome Tavern hackathon](https://dorahacks.io/hackathon/gnome-t
 - [Limits](#limits)
 - [Prior art](#prior-art)
 - [Deployment on Onyx](#deployment-on-onyx)
+- [Layout](#layout)
+- [License](#license)
 
 ## The problem
 
@@ -41,11 +50,13 @@ Lamplighter is the other half: one shared place to post the work, a reward that 
 ## How it works
 
 ```
-your realm --Register(callback, schedule, reward)--> registry        once, at deploy
+your realm --Register(callback, schedule, reward)--> registry        post a job
 anyone     --Fund(id) with ugnot------------------> registry        add oil
 anyone     --Exec(id)-----------------------------> registry --callback(id)--> your realm
                                                     registry --reward-------> the caller
 ```
+
+Oil is a job's balance in ugnot. Each run pays one reward out of it, and a job holding less than one reward is not offered to anyone.
 
 The callback is a function value of type `func(realm, uint64) error`. The GnoVM runs a function declared in a realm under that realm's authority, wherever the value is stored and whoever calls it ([interrealm spec, borrow rule 1](https://docs.gno.land/resources/gno-interrealm-v2)). So the registry can hold callbacks from any realm and gains no power over their state. GovDAO runs proposal executors the same way.
 
@@ -55,7 +66,7 @@ The callback is a function value of type `func(realm, uint64) error`. The GnoVM 
 |---|---|---|
 | `Register(name, firstDue, interval, reward, callback) uint64` | a deployed realm | Posts a job. `interval` is in seconds; `0` means the job runs once. |
 | `Fund(id)` | a user, with ugnot attached | Adds oil to a job. |
-| `Credit(id, amount)` | a realm, after sending coins to the registry | Adds `amount` of the registry's unaccounted coins to a job. |
+| `Credit(id, amount)` | anyone; meant for a realm that has just sent coins to the registry | Adds `amount` of the registry's unaccounted coins to a job. |
 | `Exec(id)` | anyone | Runs a due, funded job and pays the caller its reward. |
 | `Cancel(id, refundTo)` | the realm that posted the job | Removes the job and refunds its remaining oil. |
 | `DueJobs(afterDue, afterID, limit) string` | query | Jobs that can run now, longest overdue first, as `id:reward:due`. Pass the last entry to read on. |
@@ -66,7 +77,7 @@ Rules worth knowing:
 - **The schedule is a fixed grid.** Slots are `firstDue`, `firstDue + interval`, and so on. A late run does not shift the grid, and slots nobody ran are skipped, not replayed.
 - **A failing callback aborts the whole transaction.** No reward is paid and nothing changes.
 - **Bounds.** Interval 10 seconds to 10 years; first run at most 10 years ahead; reward at least 1,000 ugnot; name up to 80 bytes of printable text. The bounds also rule out integer overflow in the schedule.
-- **A job that runs once holds exactly one reward**, and stays registered, marked done, until its owner cancels it.
+- **A job that runs once holds at most one reward**, and stays registered, marked done, until its owner cancels it.
 
 ## Post a job from your realm
 
@@ -170,16 +181,21 @@ The rules the current version follows:
 - **Only `Cancel` frees a job**, and only the owner can call it. The deposit goes where the owner arranges, not to whoever happens to run the job. A run pays its reward and nothing else.
 - The dashboard remembers the last eight runs in a ring allocated at deploy, not a row per runner.
 
-Measured on a local chain running gno v1.8.0-rc.1 (gas price 1 ugnot per 1,000 gas):
+Measured on Onyx on 2026-11-27, in the rehearsal described under [Tests](#tests) (every reward is 50,000 ugnot):
 
 | | |
 |---|---|
-| Funding a job that had no oil | +33 bytes of state |
-| Bot's first ever run of the taproom job (reward 50,000) | fee 12,112, deposit 0, net **+37,888 ugnot** |
-| Bot settling an auction round (fee 50,000) | fee 14,539, deposit refunded 500, net **+35,961 ugnot** |
-| Opening an auction round | +9,694 bytes of state, deposit paid by the seller |
-| Seller reclaiming after the round | −7,252 bytes of state, deposit back to the seller |
-| A job that failed in its real block cost the bot | one fee, 11,345 ugnot, after which the bot rested the job |
+| The keeper opening the taproom, which registers its job | +4,074 bytes of state: a 0.41 GNOT deposit from the keeper |
+| Adding oil to a job that had none | +12 bytes of state |
+| A person running the taproom job by hand | +11 bytes; fee and deposit 21,100, net **+28,900 ugnot** |
+| The bot running the taproom job | fee 10,909, deposit 100, net **+38,991 ugnot** |
+| The bot settling an auction round | fee 13,032, deposit 100, net **+36,868 ugnot** |
+| Opening an auction round | +8,625 to +11,593 bytes of state, deposit paid by the seller |
+| The seller reclaiming after the round | −5,311 to −8,234 bytes of state, deposit back to the seller |
+
+Over those two rounds the registry's share, 10,112 bytes, was freed in full. Last Orders keeps 6,673 bytes for the two entries on its wall.
+
+Hostile jobs exist only on the local test chain. There, a job that failed in its real block cost the bot one fee, 11,345 ugnot, after which the bot rested the job.
 
 ## The two example realms
 
@@ -187,7 +203,7 @@ Measured on a local chain running gno v1.8.0-rc.1 (gas price 1 ugnot per 1,000 g
 
 **[Last Orders](gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/lastorders/v1/lastorders.gno)**: an auction that has to end on time. The highest bidder buys the last round of the night and gets a toast on the wall. Each round posts its own one-shot job and funds it, in the same call, from the fee the seller attached. Running the job at closing time moves the winning bid to the seller. Afterwards the seller cancels the finished job to get the storage deposit back.
 
-What the pages look like, as rendered by a local chain at the end of `make smoke`:
+What the pages look like on Onyx, as rendered on 2026-11-27 after the rehearsal described under [Tests](#tests):
 
 <details>
 <summary>The registry dashboard</summary>
@@ -196,27 +212,27 @@ What the pages look like, as rendered by a local chain at the end of `make smoke
 
 gno.land has no scheduler: a realm only runs when a transaction calls it. This is where realms post work that has to happen on a schedule. Anyone who runs a job once it is due is paid its reward in the same transaction.
 
-**3 jobs** · **5 runs** · **0.25 GNOT** paid out
+**1 job** · **7 runs** · **0.35 GNOT** paid out
 
 **Jobs**
 
 | # | Job | Posted by | Every | Next run | Reward | Oil | Runs |
 |---|---|---|---|---|---|---|---|
-| 1 | Taproom: change the brew on tap | /r/g1zjum…dppx/lamplighter/taproom/v2 | 30s | in 21s | 0.05 GNOT | 0.3 GNOT | 4 |
-| 2 | Hostile: grows its state at the runner's expense | /r/test/hostile | 10s | **due now** | 0.005 GNOT | 0.05 GNOT | 0 |
-| 3 | Hostile: fails in odd blocks | /r/test/hostile | 10s | **due now** | 0.02 GNOT | 0.4 GNOT | 0 |
+| 7 | Taproom: change the brew on tap | /r/g1zjum…dppx/lamplighter/taproom/v3 | 5m | **due now** | 0.05 GNOT | 0.4 GNOT | 2 |
 
 **Recent runs**
 
 | When | Job | Run by | Paid |
 |---|---|---|---|
-| 2026-11-24 05:04:00 UTC | 4 | g1sky8ml7xyg47qeskdtcagfah525yf6sv7q9f6q | 0.05 GNOT |
-| 2026-11-24 05:04:00 UTC | 1 | g1sky8ml7xyg47qeskdtcagfah525yf6sv7q9f6q | 0.05 GNOT |
-| 2026-11-24 05:02:57 UTC | 1 | g1sky8ml7xyg47qeskdtcagfah525yf6sv7q9f6q | 0.05 GNOT |
-| 2026-11-24 05:02:26 UTC | 1 | g1wckvwxlrml492060vaugy7uup87mxqcfpfapv3 | 0.05 GNOT |
-| 2026-11-24 05:01:57 UTC | 1 | g1wckvwxlrml492060vaugy7uup87mxqcfpfapv3 | 0.05 GNOT |
+| 2026-11-27 02:37:46 UTC | 7 | g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx | 0.05 GNOT |
+| 2026-11-27 02:33:05 UTC | 7 | g1h5mz9twxznnpwqlm0ugj4tacg69pnpptwjnucg | 0.05 GNOT |
+| 2026-11-27 02:26:58 UTC | 5 | g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx | 0.05 GNOT |
+| 2026-11-27 02:26:48 UTC | 6 | g1h5mz9twxznnpwqlm0ugj4tacg69pnpptwjnucg | 0.05 GNOT |
+| 2026-11-24 23:21:18 UTC | 2 | g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx | 0.05 GNOT |
+| 2026-11-24 23:21:08 UTC | 3 | g1h5mz9twxznnpwqlm0ugj4tacg69pnpptwjnucg | 0.05 GNOT |
+| 2026-11-24 22:54:06 UTC | 1 | g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx | 0.05 GNOT |
 
-(Jobs 2 and 3 are the hostile test jobs the smoke test loads.)
+(`g1zjum…dppx` runs the bot; `g1h5mz…nucg` is a person running jobs by hand. Jobs 1, 2, 3, 5 and 6 were auction rounds, settled and then reclaimed by their sellers. Job 4 belonged to the superseded taproom/v2 and was cancelled unrun when its keeper closed it.)
 
 </details>
 
@@ -233,7 +249,11 @@ Open a round (you put up 0.05 GNOT for the lamplighter)
 
 | # | Round | Won by | Toast |
 |---|---|---|---|
-| 1 | Friday's last round | g1sky8…9f6q for 0.105 GNOT | To the lamplighters |
+| 5 | A quiet Tuesday | nobody | |
+| 4 | Friday's last round | g1ytzg…sm0c for 0.105 GNOT | To the lamplighters! |
+| 3 | A quiet Tuesday | nobody | |
+| 2 | Friday's last round | g1ytzg…sm0c for 0.105 GNOT | To the lamplighters! |
+| 1 | Tonight's last round | g1zjum…dppx for 0.1 GNOT | To the lamplighters! |
 
 </details>
 
@@ -248,13 +268,13 @@ make smoke   # the whole thing on a throwaway local chain, with real transaction
 make dev     # a local chain with gnoweb at http://127.0.0.1:8899
 ```
 
-With `make dev` running, open `http://127.0.0.1:8899/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/registry/v2`.
+`make dev` uses the throwaway keys that `make smoke` creates, so run that once first. Then open `http://127.0.0.1:8899/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/lastorders/v1` and open a round to post a job. The local taproom stays unopened, because its keeper is the published key.
 
 The tools are pinned to the chain's version on purpose: a `gnokey` from before v1.7.1 produces transactions that Onyx refuses.
 
 ## Tests
 
-- **Realms** (`make test`): 30 tests. Every registry test ends by checking two invariants: the coins the realm holds cover what its jobs are owed, and every job is filed in the queue index under the one key that matches its state.
+- **Realms** (`make test`): 30 tests. The eleven registry tests about funding, running, cancelling and the due index each end by checking two invariants: the coins the realm holds cover what its jobs are owed, and every job is filed in the queue index under the one key that matches its state.
 - **Bot** (`make test`): 16 tests of the decision, the fee and gas arithmetic, the parsing of what the chain sends back, and the loss ledger.
 - **End to end** (`make smoke`): 62 checks with real transactions on a local chain:
   - the registry and the taproom: funding, running, and everything that must be refused, including a `maketx run` script trying to register;
@@ -262,7 +282,13 @@ The tools are pinned to the chain's version on purpose: a `gnokey` from before v
   - the auction: open, bid, refund of the outbid bidder, the bot settling the round, the seller paid, the seller reclaiming the deposit;
   - the bot against [hostile jobs](scripts/testdata/hostile/hostile.gno): one that grows its state at the runner's expense, and one that passes simulation and fails in its block.
 
-Not covered end to end, only by unit tests: a job that pays less than simulated without failing, the `-max-loss` budget, and the ban after three losses.
+- **On Onyx**: rehearsed on 2026-11-27 with four separate accounts (a seller, two patrons, and the bot's key, which also keeps the taproom): 56 checks passed, none failed.
+  - Last Orders: two rounds at once; the outbid patron refunded in the same transaction; one round settled by the bot, the other by a patron by hand; the seller receiving the winning bid and reclaiming both deposits.
+  - The taproom: its keeper opening it; a patron adding oil; the job run by hand and then by the bot at the next slot, five minutes later; the keeper's `Close` (simulated, since closing is for good).
+  - 21 refusals checked by simulation, which costs nothing. Among them: running a job early, twice or after it was cancelled, a stranger opening or closing the taproom, a person cancelling a realm's job or reclaiming the seller's deposit, a bid below the 5% raise or after closing, and wrong fees or round settings.
+  - Onyx refuses `maketx run` from this account, so that refusal is covered only by `make smoke`.
+
+Not covered end to end: a job that pays less than simulated without failing, the `-max-loss` budget, and the ban after three losses. Unit tests cover the ledger behind them (loss total, backoff, ban), not the bot's stop at `-max-loss`.
 
 Three properties of the Gno test runtime shape how the unit tests are written: an aborted call does not roll state back (on chain the transaction reverts), bank balances are reset between test functions while realm state is kept, and `testing.SetRealm` inside a helper does not outlive the helper.
 
@@ -285,23 +311,17 @@ Three properties of the Gno test runtime shape how the unit tests are written: a
 
 ## Deployment on Onyx
 
-Published from `g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx` on 2026-11-24:
+Published from `g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx`. Onyx stores new code inert until its package approver enables it ([package status page](https://gpas.onyx.testnets.gno.land)).
 
-| Package | Block |
-|---|---|
-| `.../lamplighter/registry/v2` | 1366163 |
-| `.../lamplighter/taproom/v2` | 1366165 |
-| `.../lamplighter/lastorders/v1` | 1366166 |
-
-Onyx stores new code inert until its package approver enables it. Progress shows on the [package status page](https://gpas.onyx.testnets.gno.land). Once enabled:
-
-- registry: https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/registry/v2
-- taproom: https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/taproom/v2
-- Last Orders: https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/lastorders/v1
+| Package | Submitted in block | Live |
+|---|---|---|
+| [`.../lamplighter/registry/v2`](https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/registry/v2) | 1366163 | 2026-11-24 |
+| [`.../lamplighter/lastorders/v1`](https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/lastorders/v1) | 1366166 | 2026-11-24 |
+| [`.../lamplighter/taproom/v3`](https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/taproom/v3) | 1391865 | 2026-11-27 (block 1439465) |
 
 [`scripts/deploy-onyx.sh`](scripts/deploy-onyx.sh) is what published them, and republishes after a testnet reset. The address is a namespace, not a registered name.
 
-Four earlier submissions under the same address are superseded and unused. A submitted package cannot be withdrawn: `.../lamplighter/registry`, `.../lamplighter/taproom`, `.../lamplighter/registry/v1`, `.../lamplighter/taproom/v1`.
+Earlier submissions under the same address are superseded and unused. A submitted package cannot be withdrawn: `.../lamplighter/registry`, `.../lamplighter/taproom`, `.../lamplighter/registry/v1`, `.../lamplighter/taproom/v1`, and `.../lamplighter/taproom/v2`, which its keeper has closed.
 
 ## Layout
 
