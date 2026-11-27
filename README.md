@@ -20,7 +20,7 @@ An entry for the [Gnome Tavern hackathon](https://dorahacks.io/hackathon/gnome-t
 | Network | Onyx testnet (`onyx-1`) |
 | Status | Live on Onyx: the registry and Last Orders since 2026-11-24, the taproom since 2026-11-27. See [Deployment](#deployment-on-onyx). |
 | Live pages | [Registry dashboard](https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/registry/v2) · [Taproom](https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/taproom/v3) · [Last Orders](https://onyx.testnets.gno.land/r/g1zjumaghw5cgzhyj46eygvd452p6the6n56dppx/lamplighter/lastorders/v1) |
-| Demo video | recorded; link to follow |
+| Demo video | [youtu.be/wRI9C4O5Lt8](https://youtu.be/wRI9C4O5Lt8) (3:26, English captions) |
 
 ## Contents
 
